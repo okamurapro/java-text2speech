@@ -13,6 +13,7 @@ import javax.sound.sampled.SourceDataLine;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -32,6 +33,7 @@ class TextToSpeech {
     // リクエストHEADER
     private static final String CONTENT_TYPE_KEY = "Content-Type";
     private static final String CONTENT_TYPE_VALUE = "application/json";
+    private static final String X_TOKEN_KEY = "X-Token";
 
     // リクエストBODY KEY.
     //トークン取得時.
@@ -62,6 +64,7 @@ class TextToSpeech {
         String token = "";          //認証トークン.
         JsonObject requestBody;     //リクエストBODYを格納するJsonオブジェクト.
         HttpPost httpPost;          //POST通信用オブジェクト.
+        HttpDelete httpDelete;          //DELETE通信用オブジェクト.
         HttpResponse response;      //レスポンス受け取り用.
 
         //***************************************************************************
@@ -133,7 +136,7 @@ class TextToSpeech {
             httpPost = new HttpPost(REQUEST_URL);    
             // HEADERの設定
             httpPost.setHeader(CONTENT_TYPE_KEY, CONTENT_TYPE_VALUE);
-            httpPost.setHeader("X-Token", token);
+            httpPost.setHeader(X_TOKEN_KEY, token);
             // リクエストBODYの設定およびContentの文字コードをUTF-8に設定
             httpPost.setEntity(new StringEntity(requestBody.toString(),ContentType.create("text/plain", "UTF-8")));
 
@@ -190,6 +193,54 @@ class TextToSpeech {
             sourceDataLine.close();
             
         } catch (Exception e) {
+            System.err.println("Error:  " + e );
+        }
+
+        //***************************************************************************
+        //　3.認証トークンの破棄.
+        //      ※RECAIUSサービスの利用を終了する時は認証トークンは破棄してください。
+        //***************************************************************************
+        try
+        {
+            // DELETEの準備
+            httpDelete = new HttpDelete(TOKEN_URL);    
+            // HEADERの設定
+            httpDelete.setHeader(CONTENT_TYPE_KEY, CONTENT_TYPE_VALUE);
+            httpDelete.setHeader(X_TOKEN_KEY, token);
+
+            // DELETEを実行
+            System.out.println("*****************************************************");
+            System.out.println("3.RECAIUS 認証トークンを破棄します。");
+            System.out.println("*****************************************************");
+            response = httpClient.execute(httpDelete);
+
+            // Responseの結果を出力
+            int statusCode = response.getStatusLine().getStatusCode();
+            System.out.println("RECAIUS 認証トークン破棄の結果を表示します。");
+            System.out.println("StatusCode  :" + statusCode);
+
+            //削除成功.
+            if ( statusCode == 204 ){
+                System.out.println("認証トークンの破棄に成功しました。");
+            }
+            //削除失敗.
+            else{
+                HttpEntity entity = response.getEntity();
+
+                //Responseの解析とJSONのパース.
+                String json_string = EntityUtils.toString(entity, StandardCharsets.UTF_8);
+                JsonReader jsonReader = Json.createReader(new StringReader(json_string));
+                JsonObject jObj = jsonReader.readObject();
+
+                System.out.println("認証トークンの破棄に失敗しました。");
+                System.out.println("エラーコード(code) :" + jObj.getInt("code"));
+                System.out.println("エラーメッセージ(message) :" + jObj.getString("message"));
+
+                jsonReader.close();
+            }
+        } 
+        catch (Exception e) 
+        {
             System.err.println("Error:  " + e );
         }
 
